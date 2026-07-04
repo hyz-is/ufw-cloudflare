@@ -22,7 +22,7 @@
 ## 快速开始
 
 ```bash
-wget -O ufw.sh https://raw.githubusercontent.com/hyzis-manager/ufw-cloudflare/main/ufw.sh
+wget -O ufw.sh https://raw.githubusercontent.com/hyz-is/ufw-cloudflare/main/ufw.sh
 chmod +x ufw.sh
 sudo ./ufw.sh
 ```
