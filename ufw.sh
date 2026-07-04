@@ -32,6 +32,10 @@ cfufw_purge=0
 cfufw_showhelp=0
 cfufw_supervision=0
 
+# SSH port(s) to always keep open — safety net so enabling UFW never locks you out.
+# Space-separated list. Override at runtime, e.g.: CFUFW_SSH_PORTS="22 2233" ./ufw.sh
+CFUFW_SSH_PORTS="${CFUFW_SSH_PORTS:-2233}"
+
 cf_ufw_add () {
     if [ ! -z "$1" ] && [ "$1" != "" ]; then
         # Validate IP address format (basic check for IPv4 and IPv6 CIDR)
@@ -84,6 +88,22 @@ cf_ufw_purge () {
     done
 }
 
+cf_ufw_ssh () {
+    for sshport in $CFUFW_SSH_PORTS; do
+        if echo "$sshport" | grep -qE '^[0-9]{1,5}$'; then
+            rule=$(LC_ALL=C && ufw allow "$sshport"/tcp comment "cf-ufw-ssh" 2>/dev/null)
+            case "$rule" in
+                *'Skipping adding existing rule'*)
+                    echo "SSH ${sshport}/tcp: already allowed." ;;
+                *)
+                    echo "SSH ${sshport}/tcp: allowed." ;;
+            esac
+        else
+            echo "SSH port '${sshport}' is invalid, skipping."
+        fi
+    done
+}
+
 echo '█░█ █▀▀ █░█░█'
 echo '█▄█ █▀░ ▀▄▀▄▀'
 echo ''
@@ -105,6 +125,7 @@ done
 if [ $cfufw_showhelp -eq 1 ]; then
     echo 'ufw.sh 2.0'
     echo 'Fetches Cloudflare IP ranges and creates UFW allow rules (ports 80 and 443 TCP) for each one.'
+    echo 'Always keeps SSH open (default 2233/tcp; override with CFUFW_SSH_PORTS) so enabling UFW never locks you out.'
     echo 'Usage: ./ufw.sh [options]'
     echo 'OPTIONS:'
     echo "\t--help (-h)       : Show this help message."
@@ -117,6 +138,10 @@ if [ $cfufw_showhelp -eq 1 ]; then
     echo "\t./ufw.sh --supervision"
     exit
 fi
+
+# Always ensure SSH stays reachable before touching any firewall rules,
+# so a fresh setup or the daily timer can never lock you out.
+cf_ufw_ssh
 
 if [ $cfufw_purge -eq 1 ]; then
     cf_ufw_purge

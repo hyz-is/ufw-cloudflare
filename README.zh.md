@@ -29,9 +29,10 @@ sudo ./ufw.sh
 
 首次运行时，脚本将：
 
-1. 从 `cloudflare.com/ips-v4` 和 `cloudflare.com/ips-v6` 获取当前的 Cloudflare IPv4 和 IPv6 范围
-2. 为每个范围在端口 **80** 和 **443**（TCP）上创建 UFW 允许规则
-3. 询问您是否要启用 **Supervision**（每日自动更新）
+1. 确保 **SSH 保持放行**（默认端口 **2233/tcp**）— 启用防火墙时防止将自己锁在门外
+2. 从 `cloudflare.com/ips-v4` 和 `cloudflare.com/ips-v6` 获取当前的 Cloudflare IPv4 和 IPv6 范围
+3. 为每个范围在端口 **80** 和 **443**（TCP）上创建 UFW 允许规则
+4. 询问您是否要启用 **Supervision**（每日自动更新）
 
 ## 用法
 
@@ -72,6 +73,22 @@ sudo ./ufw.sh --purge --no-new
 sudo ./ufw.sh --supervision
 ```
 
+## SSH 端口（默认）
+
+每次运行时——包括 **Supervision** 的自动更新——脚本都会确保 **SSH 保持放行**，这样在启用/收紧防火墙时您永远不会把自己锁在门外。默认从任意来源放行 **2233/tcp** 端口，并标记 `cf-ufw-ssh` 注释。
+
+此规则**独立于 Cloudflare 规则**：`--purge`（仅删除标记为 `# cloudflare` 的规则）**不会**删除它。
+
+要使用其他端口，请设置 `CFUFW_SSH_PORTS` 变量（以空格分隔的列表）：
+
+```bash
+# 使用标准 SSH 端口 (22) 而非自定义端口
+sudo CFUFW_SSH_PORTS="22" ./ufw.sh
+
+# 端口迁移期间同时保留两者
+sudo CFUFW_SSH_PORTS="22 2233" ./ufw.sh
+```
+
 ## Supervision
 
 Supervision 功能安装一个 **systemd 定时器**，每 24 小时使用 `--purge` 运行一次脚本，确保您的防火墙规则始终反映最新的 Cloudflare IP 范围。
@@ -100,11 +117,12 @@ sudo systemctl start ufw-cloudflare-supervision.service
 
 ## 工作原理
 
-1. 从 `https://www.cloudflare.com/ips-v4` 获取 IPv4 范围
-2. 从 `https://www.cloudflare.com/ips-v6` 获取 IPv6 范围
-3. 对每个 CIDR 范围执行：`ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
-4. 使用 `--purge` 时，在添加新规则之前删除所有标记为 `# cloudflare` 注释的 UFW 规则
-5. 在应用更改之前验证 IP 格式并确认下载成功
+1. 首先确保 SSH 规则：`ufw allow 2233/tcp comment "cf-ufw-ssh"`（始终执行，即使使用 `--purge` 或 `--no-new`）
+2. 从 `https://www.cloudflare.com/ips-v4` 获取 IPv4 范围
+3. 从 `https://www.cloudflare.com/ips-v6` 获取 IPv6 范围
+4. 对每个 CIDR 范围执行：`ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
+5. 使用 `--purge` 时，在添加新规则之前删除所有标记为 `# cloudflare` 注释的 UFW 规则（SSH 规则 `cf-ufw-ssh` 会被保留）
+6. 在应用更改之前验证 IP 格式并确认下载成功
 
 ## 输出图例
 

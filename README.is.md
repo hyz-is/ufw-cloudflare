@@ -29,9 +29,10 @@ sudo ./ufw.sh
 
 Í fyrstu keyrslu mun skriftað:
 
-1. Sækja núverandi IPv4 og IPv6 svið Cloudflare frá `cloudflare.com/ips-v4` og `cloudflare.com/ips-v6`
-2. Búa til UFW leyfisreglur fyrir hvert svið á gáttum **80** og **443** (TCP)
-3. Spyrja hvort þú viljir virkja **Supervision** (sjálfvirka daglega uppfærslu)
+1. Tryggja að **SSH haldist opið** (gátt **2233/tcp** sjálfgefið) — vörn gegn því að læsa þig úti þegar eldveggurinn er virkjaður
+2. Sækja núverandi IPv4 og IPv6 svið Cloudflare frá `cloudflare.com/ips-v4` og `cloudflare.com/ips-v6`
+3. Búa til UFW leyfisreglur fyrir hvert svið á gáttum **80** og **443** (TCP)
+4. Spyrja hvort þú viljir virkja **Supervision** (sjálfvirka daglega uppfærslu)
 
 ## Notkun
 
@@ -72,6 +73,22 @@ sudo ./ufw.sh --purge --no-new
 sudo ./ufw.sh --supervision
 ```
 
+## SSH gátt (sjálfgefið)
+
+Í hvert sinn sem það keyrir — þar á meðal sjálfvirku **Supervision** uppfærslurnar — tryggir skriftað að **SSH haldist opið**, svo þú getir aldrei læst þig úti þegar þú virkjar/hertir eldvegginn. Sjálfgefið leyfir það gátt **2233/tcp** frá hvaða uppruna sem er, merkt með `cf-ufw-ssh` athugasemd.
+
+Þessi regla er **óháð Cloudflare reglunum**: `--purge` (sem eyðir aðeins reglum merktum `# cloudflare`) eyðir henni **ekki**.
+
+Til að nota aðra gátt/gáttir, stilltu breytuna `CFUFW_SSH_PORTS` (listi aðskilinn með bilum):
+
+```bash
+# Venjuleg SSH gátt (22) í stað sérsniðnu
+sudo CFUFW_SSH_PORTS="22" ./ufw.sh
+
+# Halda báðum meðan á gáttarflutningi stendur
+sudo CFUFW_SSH_PORTS="22 2233" ./ufw.sh
+```
+
 ## Supervision
 
 Supervision eiginleikinn setur upp **systemd tímamæli** sem keyrir skriftað einu sinni á 24 klukkustunda fresti með `--purge`, sem tryggir að eldveggsreglurnar þínar endurspegli alltaf nýjustu IP-svið Cloudflare.
@@ -100,11 +117,12 @@ sudo systemctl start ufw-cloudflare-supervision.service
 
 ## Hvernig Það Virkar
 
-1. Sækir IPv4 svið frá `https://www.cloudflare.com/ips-v4`
-2. Sækir IPv6 svið frá `https://www.cloudflare.com/ips-v6`
-3. Fyrir hvert CIDR svið keyrir: `ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
-4. Þegar `--purge` er notað eyðir öllum UFW reglum merktar með `# cloudflare` athugasemd áður en nýjar eru bættar við
-5. Staðfestir IP-snið og sannreynir að niðurhal hafi tekist áður en breytingar eru settar í framkvæmd
+1. Tryggir SSH regluna fyrst: `ufw allow 2233/tcp comment "cf-ufw-ssh"` (alltaf, jafnvel með `--purge` eða `--no-new`)
+2. Sækir IPv4 svið frá `https://www.cloudflare.com/ips-v4`
+3. Sækir IPv6 svið frá `https://www.cloudflare.com/ips-v6`
+4. Fyrir hvert CIDR svið keyrir: `ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
+5. Þegar `--purge` er notað eyðir öllum UFW reglum merktar með `# cloudflare` athugasemd áður en nýjar eru bættar við (SSH reglan `cf-ufw-ssh` er varðveitt)
+6. Staðfestir IP-snið og sannreynir að niðurhal hafi tekist áður en breytingar eru settar í framkvæmd
 
 ## Útskýring Úttaks
 

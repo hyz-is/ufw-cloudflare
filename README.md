@@ -29,9 +29,10 @@ sudo ./ufw.sh
 
 On first run, the script will:
 
-1. Fetch the current Cloudflare IPv4 and IPv6 ranges from `cloudflare.com/ips-v4` and `cloudflare.com/ips-v6`
-2. Create UFW allow rules for each range on ports **80** and **443** (TCP)
-3. Ask if you want to enable **Supervision** (automatic daily updates)
+1. Ensure **SSH stays allowed** (port **2233/tcp** by default) — lockout protection when enabling the firewall
+2. Fetch the current Cloudflare IPv4 and IPv6 ranges from `cloudflare.com/ips-v4` and `cloudflare.com/ips-v6`
+3. Create UFW allow rules for each range on ports **80** and **443** (TCP)
+4. Ask if you want to enable **Supervision** (automatic daily updates)
 
 ## Usage
 
@@ -72,6 +73,22 @@ sudo ./ufw.sh --purge --no-new
 sudo ./ufw.sh --supervision
 ```
 
+## SSH Port (default)
+
+Every time it runs — including the automatic **Supervision** updates — the script ensures **SSH stays allowed**, so you can never lock yourself out when enabling/tightening the firewall. By default it allows port **2233/tcp** from anywhere, tagged with the `cf-ufw-ssh` comment.
+
+This rule is **independent of the Cloudflare rules**: `--purge` (which only removes rules tagged `# cloudflare`) does **not** delete it.
+
+To use different port(s), set the `CFUFW_SSH_PORTS` variable (space-separated list):
+
+```bash
+# Standard SSH port (22) instead of the custom one
+sudo CFUFW_SSH_PORTS="22" ./ufw.sh
+
+# Keep both during a port migration
+sudo CFUFW_SSH_PORTS="22 2233" ./ufw.sh
+```
+
 ## Supervision
 
 The Supervision feature installs a **systemd timer** that runs the script once every 24 hours with `--purge`, ensuring your firewall rules always reflect the latest Cloudflare IP ranges.
@@ -100,11 +117,12 @@ sudo systemctl start ufw-cloudflare-supervision.service
 
 ## How It Works
 
-1. Fetches IPv4 ranges from `https://www.cloudflare.com/ips-v4`
-2. Fetches IPv6 ranges from `https://www.cloudflare.com/ips-v6`
-3. For each CIDR range, runs: `ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
-4. When `--purge` is used, removes all existing UFW rules tagged with the `# cloudflare` comment before adding fresh ones
-5. Validates IP formats and verifies the fetch was successful before applying changes
+1. Ensures the SSH rule first: `ufw allow 2233/tcp comment "cf-ufw-ssh"` (always, even with `--purge` or `--no-new`)
+2. Fetches IPv4 ranges from `https://www.cloudflare.com/ips-v4`
+3. Fetches IPv6 ranges from `https://www.cloudflare.com/ips-v6`
+4. For each CIDR range, runs: `ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
+5. When `--purge` is used, removes all existing UFW rules tagged with the `# cloudflare` comment before adding fresh ones (the SSH rule `cf-ufw-ssh` is preserved)
+6. Validates IP formats and verifies the fetch was successful before applying changes
 
 ## Output Legend
 

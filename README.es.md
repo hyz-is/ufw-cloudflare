@@ -29,9 +29,10 @@ sudo ./ufw.sh
 
 En la primera ejecución, el script:
 
-1. Obtiene los rangos IPv4 e IPv6 actuales de Cloudflare desde `cloudflare.com/ips-v4` y `cloudflare.com/ips-v6`
-2. Crea reglas de permiso en UFW para cada rango en los puertos **80** y **443** (TCP)
-3. Pregunta si deseas activar **Supervision** (actualización automática diaria)
+1. Garantiza que el **SSH siga permitido** (puerto **2233/tcp** por defecto) — protección contra bloqueo al habilitar el firewall
+2. Obtiene los rangos IPv4 e IPv6 actuales de Cloudflare desde `cloudflare.com/ips-v4` y `cloudflare.com/ips-v6`
+3. Crea reglas de permiso en UFW para cada rango en los puertos **80** y **443** (TCP)
+4. Pregunta si deseas activar **Supervision** (actualización automática diaria)
 
 ## Uso
 
@@ -72,6 +73,22 @@ sudo ./ufw.sh --purge --no-new
 sudo ./ufw.sh --supervision
 ```
 
+## Puerto SSH (por defecto)
+
+Cada vez que se ejecuta — incluidas las actualizaciones automáticas de **Supervision** — el script garantiza que el **SSH siga permitido**, para que nunca te bloquees a ti mismo al habilitar/restringir el firewall. Por defecto permite el puerto **2233/tcp** desde cualquier origen, con el comentario `cf-ufw-ssh`.
+
+Esta regla es **independiente de las reglas de Cloudflare**: `--purge` (que solo elimina reglas con el comentario `# cloudflare`) **no** la elimina.
+
+Para usar otro(s) puerto(s), define la variable `CFUFW_SSH_PORTS` (lista separada por espacios):
+
+```bash
+# Puerto SSH estándar (22) en lugar del personalizado
+sudo CFUFW_SSH_PORTS="22" ./ufw.sh
+
+# Mantener ambos durante una migración de puerto
+sudo CFUFW_SSH_PORTS="22 2233" ./ufw.sh
+```
+
 ## Supervision
 
 La función Supervision instala un **timer de systemd** que ejecuta el script una vez cada 24 horas con `--purge`, asegurando que tus reglas de firewall siempre reflejen los rangos de IP más recientes de Cloudflare.
@@ -100,11 +117,12 @@ sudo systemctl start ufw-cloudflare-supervision.service
 
 ## Cómo Funciona
 
-1. Obtiene los rangos IPv4 de `https://www.cloudflare.com/ips-v4`
-2. Obtiene los rangos IPv6 de `https://www.cloudflare.com/ips-v6`
-3. Para cada rango CIDR, ejecuta: `ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
-4. Cuando se usa `--purge`, elimina todas las reglas UFW marcadas con el comentario `# cloudflare` antes de agregar nuevas
-5. Valida los formatos de IP y verifica que la descarga fue exitosa antes de aplicar cambios
+1. Garantiza primero la regla de SSH: `ufw allow 2233/tcp comment "cf-ufw-ssh"` (siempre, incluso con `--purge` o `--no-new`)
+2. Obtiene los rangos IPv4 de `https://www.cloudflare.com/ips-v4`
+3. Obtiene los rangos IPv6 de `https://www.cloudflare.com/ips-v6`
+4. Para cada rango CIDR, ejecuta: `ufw allow from <IP> to any port 80,443 proto tcp comment "cloudflare"`
+5. Cuando se usa `--purge`, elimina todas las reglas UFW marcadas con el comentario `# cloudflare` antes de agregar nuevas (la regla SSH `cf-ufw-ssh` se conserva)
+6. Valida los formatos de IP y verifica que la descarga fue exitosa antes de aplicar cambios
 
 ## Leyenda de Salida
 
